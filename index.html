@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Password Generator</title>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; }
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; gap: 1.5rem; }
         .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 350px; }
+        .crack-time { font-size: 1.8rem; font-weight: bold; text-align: center; margin: 1rem 0; color: #007bff; word-break: break-word; }
+        .crack-label { text-align: center; color: #666; }
         .result-container { background: #eee; padding: 10px; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; word-break: break-all; }
         .setting { display: flex; justify-content: space-between; margin-bottom: 10px; }
         button { width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
@@ -40,6 +42,21 @@
         <button id="generate">Generate Password</button>
     </div>
 
+    <div class="card">
+        <h2>Time to Crack</h2>
+        <p class="crack-label">A brute-force attacker would need about</p>
+        <div class="crack-time" id="crackTime">instantly</div>
+        <p class="crack-label">to crack this password.</p>
+        <div class="result-container" style="margin-top: 1rem;">
+            <span>Character set</span>
+            <span id="charsetSize">95</span>
+        </div>
+        <div class="result-container">
+            <span>Combinations</span>
+            <span id="combinations">—</span>
+        </div>
+    </div>
+
     <script>
         const passwordEl = document.getElementById('password');
         const lengthEl = document.getElementById('length');
@@ -47,6 +64,57 @@
         const numbersEl = document.getElementById('numbers');
         const symbolsEl = document.getElementById('symbols');
         const generateEl = document.getElementById('generate');
+        const crackTimeEl = document.getElementById('crackTime');
+        const charsetSizeEl = document.getElementById('charsetSize');
+        const combinationsEl = document.getElementById('combinations');
+
+        // Guesses per second for a fast offline brute-force attack
+        const GUESSES_PER_SECOND = 1e10;
+
+        function formatNumber(n) {
+            if (n < 1e6) return Math.round(n).toLocaleString();
+            return n.toExponential(2);
+        }
+
+        function formatDuration(seconds) {
+            if (seconds < 1) return 'instantly';
+            const units = [
+                { name: 'year', secs: 31536000 },
+                { name: 'day', secs: 86400 },
+                { name: 'hour', secs: 3600 },
+                { name: 'minute', secs: 60 },
+                { name: 'second', secs: 1 }
+            ];
+            if (seconds >= units[0].secs * 1000) {
+                const years = seconds / units[0].secs;
+                return formatNumber(years) + ' years';
+            }
+            for (const unit of units) {
+                if (seconds >= unit.secs) {
+                    const value = Math.round(seconds / unit.secs);
+                    return value + ' ' + unit.name + (value !== 1 ? 's' : '');
+                }
+            }
+            return 'instantly';
+        }
+
+        function updateCrackTime(password) {
+            let charsetSize = 0;
+            if (/[a-z]/.test(password)) charsetSize += 26;
+            if (/[A-Z]/.test(password)) charsetSize += 26;
+            if (/[0-9]/.test(password)) charsetSize += 10;
+            if (/[^a-zA-Z0-9]/.test(password)) charsetSize += 20;
+
+            const length = password.length;
+            // Total combinations = charsetSize ^ length
+            const combinations = Math.pow(charsetSize, length);
+            // On average, half the keyspace must be searched
+            const seconds = combinations / 2 / GUESSES_PER_SECOND;
+
+            charsetSizeEl.innerText = charsetSize;
+            combinationsEl.innerText = isFinite(combinations) ? formatNumber(combinations) : '∞';
+            crackTimeEl.innerText = formatDuration(seconds);
+        }
 
         const randomFunc = {
             lower: () => String.fromCharCode(Math.floor(Math.random() * 26) + 97),
@@ -70,7 +138,11 @@
             }
 
             passwordEl.innerText = generatedPassword;
+            updateCrackTime(generatedPassword);
         });
+
+        // Initialize with the password shown on load
+        updateCrackTime(passwordEl.innerText);
     </script>
 </body>
 </html>
